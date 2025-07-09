@@ -1,34 +1,120 @@
 {
-    "gym workout": {
+    "resume update": {
         "done": true,
-        "deadline": null,
-        "priority": null
+        "deadline": "2024-07-05",
+        "priority": "high",
+        "category": "placement",
+        "recurring": null
     },
-    "read book": {
-        "done": true,
-        "deadline": null,
-        "priority": null
+    "aptitude practice": {
+        "done": false,
+        "deadline": "2024-07-10",
+        "priority": "medium",
+        "category": "placement",
+        "recurring": "daily",
+        "last_reset": "2025-07-09"
     },
-    "write report": {
-        "done": true,
-        "deadline": null,
-        "priority": null
+    "coding interview prep": {
+        "done": false,
+        "deadline": "2024-07-15",
+        "priority": "high",
+        "category": "placement",
+        "recurring": "daily",
+        "last_reset": "2025-07-09"
     },
-    "placement preparation": {
+    "mock interview": {
+        "done": false,
+        "deadline": "2024-07-20",
+        "priority": "medium",
+        "category": "placement",
+        "recurring": "weekly",
+        "last_reset_week": 28
+    },
+    "company research": {
+        "done": false,
+        "deadline": "2024-07-12",
+        "priority": "low",
+        "category": "placement",
+        "recurring": null
+    },
+    "dsa practice": {
         "done": false,
         "deadline": null,
-        "priority": null
-    },
-    "placement preparation for celebal": {
-        "done": false,
-        "deadline": null,
-        "priority": null
+        "priority": "high",
+        "category": "placement",
+        "recurring": "daily",
+        "last_reset": "2025-07-09"
     },
     "__timetable__": [
         {
-            "day": "monday",
+            "day": "Monday",
             "time": "7pm",
             "activity": "aptitude practice"
+        },
+        {
+            "day": "Tuesday",
+            "time": "7pm",
+            "activity": "coding interview prep"
+        },
+        {
+            "day": "Wednesday",
+            "time": "7pm",
+            "activity": "mock interview"
+        },
+        {
+            "day": "Thursday",
+            "time": "7pm",
+            "activity": "company research"
+        },
+        {
+            "day": "Friday",
+            "time": "7pm",
+            "activity": "resume update"
+        },
+        {
+            "day": "Saturday",
+            "time": "7pm",
+            "activity": "mock test"
+        },
+        {
+            "day": "Sunday",
+            "time": "7pm",
+            "activity": "mock test"
+        },
+        {
+            "day": "Monday",
+            "time": "8am",
+            "activity": "dsa practice"
+        },
+        {
+            "day": "Tuesday",
+            "time": "8am",
+            "activity": "dsa practice"
+        },
+        {
+            "day": "Wednesday",
+            "time": "8am",
+            "activity": "dsa practice"
+        },
+        {
+            "day": "Thursday",
+            "time": "8am",
+            "activity": "dsa practice"
+        },
+        {
+            "day": "Friday",
+            "time": "8am",
+            "activity": "dsa practice"
+        },
+        {
+            "day": "Saturday",
+            "time": "8am",
+            "activity": "dsa practice"
+        },
+        {
+            "day": "Sunday",
+            "time": "8am",
+            "activity": "dsa practice"
         }
     ]
 }

@@ -79,6 +79,35 @@ def save_timetable(tasks, timetable):
 # === Process User Input ===
 def process_input(text, tasks):
     text = text.lower()
+    # Search tasks by keyword
+    search_match = re.match(r"(search|find) task (.+)", text)
+    if search_match:
+        keyword = search_match.group(2).strip()
+        results = []
+        for task, info in tasks.items():
+            if not isinstance(info, dict):
+                continue
+            if keyword in task or (info.get('category') and keyword in info['category']) or (info.get('activity') and keyword in info['activity']):
+                results.append(task)
+        if results:
+            return f"Tasks matching '{keyword}': {', '.join(results)}."
+        else:
+            return f"No tasks found matching '{keyword}'."
+    # Filter tasks by deadline, priority, or category
+    filter_match = re.match(r"filter tasks by (deadline|priority|category) (.+)", text)
+    if filter_match:
+        field = filter_match.group(1)
+        value = filter_match.group(2).strip()
+        results = []
+        for task, info in tasks.items():
+            if not isinstance(info, dict):
+                continue
+            if info.get(field) and value in str(info[field]).lower():
+                results.append(task)
+        if results:
+            return f"Tasks with {field} '{value}': {', '.join(results)}."
+        else:
+            return f"No tasks found with {field} '{value}'."
     # Add task with deadline, priority, category, and/or recurrence
     add_match = re.match(r"add task (.+?)( with deadline (.+?))?( and priority (.+?))?( in category (.+?))?( recurring (daily|weekly))?$", text)
     if add_match:
@@ -158,7 +187,20 @@ def process_input(text, tasks):
             priority = f", priority: {info.get('priority')}" if info.get("priority") else ""
             category = f", category: {info.get('category')}" if info.get("category") else ""
             recurring = f", recurring: {info.get('recurring')}" if info.get("recurring") else ""
-            response += f"- {task} [{status}{deadline}{priority}{category}{recurring}]\n"
+            # Highlight overdue and due-soon tasks
+            highlight = ""
+            if info.get('deadline'):
+                try:
+                    due_date = datetime.datetime.strptime(info['deadline'], '%Y-%m-%d').date()
+                    today = datetime.datetime.now().date()
+                    soon = today + datetime.timedelta(days=1)
+                    if not info["done"] and due_date < today:
+                        highlight = " [OVERDUE]"
+                    elif not info["done"] and today <= due_date <= soon:
+                        highlight = " [DUE SOON]"
+                except Exception:
+                    pass
+            response += f"- {task} [{status}{deadline}{priority}{category}{recurring}]{highlight}\n"
         return response.strip()
     if "edit task" in text or "rename task" in text:
         # Extract old and new task names
@@ -289,6 +331,28 @@ def reset_recurring_tasks(tasks):
                 info['done'] = False
                 info['last_reset_week'] = week
 
+def check_deadlines(tasks):
+    now = datetime.datetime.now()
+    today = now.date()
+    soon = today + datetime.timedelta(days=1)
+    reminders = []
+    overdue = []
+    for task, info in tasks.items():
+        if not isinstance(info, dict):
+            continue
+        deadline = info.get('deadline')
+        done = info.get('done')
+        if deadline:
+            try:
+                due_date = datetime.datetime.strptime(deadline, '%Y-%m-%d').date()
+                if not done and due_date < today:
+                    overdue.append(task)
+                elif not done and today <= due_date <= soon:
+                    reminders.append((task, due_date))
+            except Exception:
+                continue
+    return reminders, overdue
+
 # === Listen to Microphone ===
 def listen():
     try:
@@ -317,6 +381,12 @@ def main():
         speak(f"Error loading tasks: {e}")
         tasks = {}
     reset_recurring_tasks(tasks)
+    reminders, overdue = check_deadlines(tasks)
+    if overdue:
+        speak(f"You have overdue tasks: {', '.join(overdue)}.")
+    if reminders:
+        soon_tasks = ', '.join([f"{t} (due {d})" for t, d in reminders])
+        speak(f"Upcoming deadlines: {soon_tasks}.")
     speak("Welcome to your voice to-do assistant.")
 
     while True:
@@ -334,6 +404,12 @@ def main():
             break
         if "run" == user_input.strip().lower():
             reset_recurring_tasks(tasks)
+            reminders, overdue = check_deadlines(tasks)
+            if overdue:
+                speak(f"You have overdue tasks: {', '.join(overdue)}.")
+            if reminders:
+                soon_tasks = ', '.join([f"{t} (due {d})" for t, d in reminders])
+                speak(f"Upcoming deadlines: {soon_tasks}.")
             monitor_timetable(tasks)
             continue
 
