@@ -1,0 +1,34 @@
+{
+    "gym workout": {
+        "done": true,
+        "deadline": null,
+        "priority": null
+    },
+    "read book": {
+        "done": true,
+        "deadline": null,
+        "priority": null
+    },
+    "write report": {
+        "done": true,
+        "deadline": null,
+        "priority": null
+    },
+    "placement preparation": {
+        "done": false,
+        "deadline": null,
+        "priority": null
+    },
+    "placement preparation for celebal": {
+        "done": false,
+        "deadline": null,
+        "priority": null
+    },
+    "__timetable__": [
+        {
+            "day": "monday",
+            "time": "7pm",
+            "activity": "aptitude practice"
+        }
+    ]
+}
