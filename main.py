@@ -9,6 +9,10 @@ from gtts import gTTS
 import tempfile
 import datetime
 import time
+import spacy
+import threading
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog
 
 # === Voice Engine Setup ===
 engine = pyttsx3.init()
@@ -77,22 +81,101 @@ def save_timetable(tasks, timetable):
     tasks[TIMETABLE_KEY] = timetable
 
 # === Process User Input ===
+nlp = spacy.load('en_core_web_sm')
+
 def process_input(text, tasks):
     text = text.lower()
-    # Search tasks by keyword
-    search_match = re.match(r"(search|find) task (.+)", text)
-    if search_match:
-        keyword = search_match.group(2).strip()
-        results = []
+    doc = nlp(text)
+    # Conversational 'add task' intent
+    if any(t.lemma_ in ['add', 'create', 'remind'] for t in doc) and 'task' in text:
+        # Try to extract task name and details
+        task_name = None
+        deadline = None
+        priority = None
+        category = None
+        recurring = None
+        for ent in doc.ents:
+            if ent.label_ == 'DATE':
+                deadline = ent.text
+            if ent.label_ == 'TIME':
+                # Could be used for deadline or timetable
+                pass
+        # Find the task name (after 'task' or 'to')
+        if 'task' in text:
+            after_task = text.split('task', 1)[-1].strip()
+            if after_task:
+                task_name = after_task.split(' with ')[0].split(' in ')[0].split(' for ')[0].split(' every ')[0].strip()
+        if not task_name:
+            # Try after 'to'
+            if 'to' in text:
+                task_name = text.split('to', 1)[-1].strip()
+        # Recurring
+        if 'every day' in text or 'daily' in text:
+            recurring = 'daily'
+        elif 'every week' in text or 'weekly' in text:
+            recurring = 'weekly'
+        # Priority
+        if 'high priority' in text or 'important' in text:
+            priority = 'high'
+        elif 'medium priority' in text:
+            priority = 'medium'
+        elif 'low priority' in text:
+            priority = 'low'
+        # Category
+        if 'placement' in text:
+            category = 'placement'
+        if task_name:
+            # Try to parse deadline to YYYY-MM-DD if possible
+            import dateutil.parser
+            if deadline:
+                try:
+                    deadline_parsed = dateutil.parser.parse(deadline, fuzzy=True)
+                    deadline = deadline_parsed.strftime('%Y-%m-%d')
+                except Exception:
+                    pass
+            if task_name in tasks:
+                return f"'{task_name}' is already in your to-do list."
+            tasks[task_name] = {"done": False, "deadline": deadline, "priority": priority, "category": category, "recurring": recurring}
+            msg = f"Added '{task_name}' to your to-do list."
+            if deadline:
+                msg += f" Deadline: {deadline}."
+            if priority:
+                msg += f" Priority: {priority}."
+            if category:
+                msg += f" Category: {category}."
+            if recurring:
+                msg += f" Recurring: {recurring}."
+            return msg
+        else:
+            return "Please specify the task to add."
+    # Conversational 'list tasks' intent
+    if any(t.lemma_ in ['list', 'show', 'what'] for t in doc) and 'task' in text:
+        if not tasks:
+            return "Your to-do list is empty."
+        response = "Here are your tasks:\n"
         for task, info in tasks.items():
             if not isinstance(info, dict):
                 continue
-            if keyword in task or (info.get('category') and keyword in info['category']) or (info.get('activity') and keyword in info['activity']):
-                results.append(task)
-        if results:
-            return f"Tasks matching '{keyword}': {', '.join(results)}."
-        else:
-            return f"No tasks found matching '{keyword}'."
+            status = "done" if info["done"] else "not done"
+            deadline = f", deadline: {info.get('deadline')}" if info.get("deadline") else ""
+            priority = f", priority: {info.get('priority')}" if info.get("priority") else ""
+            category = f", category: {info.get('category')}" if info.get("category") else ""
+            recurring = f", recurring: {info.get('recurring')}" if info.get("recurring") else ""
+            # Highlight overdue and due-soon tasks
+            highlight = ""
+            if info.get('deadline'):
+                try:
+                    due_date = datetime.datetime.strptime(info['deadline'], '%Y-%m-%d').date()
+                    today = datetime.datetime.now().date()
+                    soon = today + datetime.timedelta(days=1)
+                    if not info["done"] and due_date < today:
+                        highlight = " [OVERDUE]"
+                    elif not info["done"] and today <= due_date <= soon:
+                        highlight = " [DUE SOON]"
+                except Exception:
+                    pass
+            response += f"- {task} [{status}{deadline}{priority}{category}{recurring}]{highlight}\n"
+        return response.strip()
     # Filter tasks by deadline, priority, or category
     filter_match = re.match(r"filter tasks by (deadline|priority|category) (.+)", text)
     if filter_match:
@@ -373,6 +456,150 @@ def listen():
         speak(f"Microphone or audio error: {e}")
         return None
 
+def launch_gui():
+    def refresh_tasks():
+        tasks = load_tasks()
+        for i in tree_tasks.get_children():
+            tree_tasks.delete(i)
+        for task, info in tasks.items():
+            if not isinstance(info, dict):
+                continue
+            tree_tasks.insert('', 'end', iid=task, values=(task, info.get('done'), info.get('deadline'), info.get('priority'), info.get('category'), info.get('recurring')))
+
+    def refresh_timetable():
+        tasks = load_tasks()
+        timetable = load_timetable(tasks)
+        for i in tree_tt.get_children():
+            tree_tt.delete(i)
+        for entry in timetable:
+            tree_tt.insert('', 'end', values=(entry['day'], entry['time'], entry['activity']))
+
+    def refresh_all():
+        refresh_tasks()
+        refresh_timetable()
+
+    def add_task():
+        task_name = simpledialog.askstring("Add Task", "Task name:")
+        if not task_name:
+            return
+        tasks = load_tasks()
+        if task_name in tasks:
+            messagebox.showerror("Error", "Task already exists.")
+            return
+        tasks[task_name] = {"done": False, "deadline": None, "priority": None, "category": None, "recurring": None}
+        save_tasks(tasks)
+        refresh_tasks()
+
+    def mark_done():
+        selected = tree_tasks.selection()
+        if not selected:
+            return
+        tasks = load_tasks()
+        for task in selected:
+            if task in tasks:
+                tasks[task]["done"] = True
+        save_tasks(tasks)
+        refresh_tasks()
+
+    def delete_task():
+        selected = tree_tasks.selection()
+        if not selected:
+            return
+        tasks = load_tasks()
+        for task in selected:
+            if task in tasks:
+                del tasks[task]
+        save_tasks(tasks)
+        refresh_tasks()
+
+    def add_tt():
+        day = simpledialog.askstring("Add Timetable Entry", "Day (e.g., Monday):")
+        time_ = simpledialog.askstring("Add Timetable Entry", "Time (e.g., 7pm):")
+        activity = simpledialog.askstring("Add Timetable Entry", "Activity:")
+        if not (day and time_ and activity):
+            return
+        tasks = load_tasks()
+        timetable = load_timetable(tasks)
+        timetable.append({"day": day, "time": time_, "activity": activity})
+        save_timetable(tasks, timetable)
+        save_tasks(tasks)
+        refresh_timetable()
+
+    def delete_tt():
+        selected = tree_tt.selection()
+        if not selected:
+            return
+        tasks = load_tasks()
+        timetable = load_timetable(tasks)
+        for item in selected:
+            vals = tree_tt.item(item, 'values')
+            timetable = [e for e in timetable if not (e['day'] == vals[0] and e['time'] == vals[1] and e['activity'] == vals[2])]
+        save_timetable(tasks, timetable)
+        save_tasks(tasks)
+        refresh_timetable()
+
+    def voice_command():
+        status_var.set("Listening for command...")
+        root.update()
+        user_input = listen()
+        if user_input is None:
+            status_var.set("Sorry, I didn't catch that. Please try again.")
+            return
+        status_var.set(f"You said: {user_input}")
+        tasks = load_tasks()
+        # Check for update/refresh GUI intent
+        if any(word in user_input.lower() for word in ["update the gui", "refresh the gui", "reload the gui"]):
+            refresh_all()
+            status_var.set("GUI updated with latest data.")
+            return
+        response = process_input(user_input, tasks)
+        if response is not None:
+            speak(response)
+            status_var.set(f"Assistant: {response}")
+        save_tasks(tasks)
+        refresh_all()
+
+    root = tk.Tk()
+    root.title("Placement Prep Assistant - GUI")
+
+    # Tasks Frame
+    frame_tasks = ttk.LabelFrame(root, text="Tasks")
+    frame_tasks.pack(fill='both', expand=True, padx=10, pady=5)
+    tree_tasks = ttk.Treeview(frame_tasks, columns=("Task", "Done", "Deadline", "Priority", "Category", "Recurring"), show='headings')
+    for col in ("Task", "Done", "Deadline", "Priority", "Category", "Recurring"):
+        tree_tasks.heading(col, text=col)
+        tree_tasks.column(col, width=100)
+    tree_tasks.pack(fill='both', expand=True, side='left')
+    btn_frame = ttk.Frame(frame_tasks)
+    btn_frame.pack(side='right', fill='y')
+    ttk.Button(btn_frame, text="Add Task", command=add_task).pack(fill='x', pady=2)
+    ttk.Button(btn_frame, text="Mark Done", command=mark_done).pack(fill='x', pady=2)
+    ttk.Button(btn_frame, text="Delete Task", command=delete_task).pack(fill='x', pady=2)
+
+    # Timetable Frame
+    frame_tt = ttk.LabelFrame(root, text="Timetable")
+    frame_tt.pack(fill='both', expand=True, padx=10, pady=5)
+    tree_tt = ttk.Treeview(frame_tt, columns=("Day", "Time", "Activity"), show='headings')
+    for col in ("Day", "Time", "Activity"):
+        tree_tt.heading(col, text=col)
+        tree_tt.column(col, width=100)
+    tree_tt.pack(fill='both', expand=True, side='left')
+    btn_tt_frame = ttk.Frame(frame_tt)
+    btn_tt_frame.pack(side='right', fill='y')
+    ttk.Button(btn_tt_frame, text="Add Entry", command=add_tt).pack(fill='x', pady=2)
+    ttk.Button(btn_tt_frame, text="Delete Entry", command=delete_tt).pack(fill='x', pady=2)
+
+    # Voice Command Button and Status
+    status_var = tk.StringVar()
+    status_var.set("")
+    status_label = ttk.Label(root, textvariable=status_var, foreground="blue")
+    status_label.pack(fill='x', padx=10, pady=5)
+    ttk.Button(root, text="Voice Command", command=voice_command).pack(fill='x', padx=10, pady=5)
+
+    refresh_tasks()
+    refresh_timetable()
+    root.mainloop()
+
 # === Main Loop ===
 def main():
     try:
@@ -428,4 +655,7 @@ if __name__ == "__main__":
     except ImportError as e:
         print(f"Missing dependency: {e}. Please install all required packages in requirements.txt.")
         sys.exit(1)
+    # Start GUI in a separate thread
+    gui_thread = threading.Thread(target=launch_gui, daemon=True)
+    gui_thread.start()
     main()

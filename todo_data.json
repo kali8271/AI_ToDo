@@ -7,7 +7,7 @@
         "recurring": null
     },
     "aptitude practice": {
-        "done": false,
+        "done": true,
         "deadline": "2024-07-10",
         "priority": "medium",
         "category": "placement",
@@ -23,7 +23,7 @@
         "last_reset": "2025-07-09"
     },
     "mock interview": {
-        "done": false,
+        "done": true,
         "deadline": "2024-07-20",
         "priority": "medium",
         "category": "placement",
@@ -38,7 +38,7 @@
         "recurring": null
     },
     "dsa practice": {
-        "done": false,
+        "done": true,
         "deadline": null,
         "priority": "high",
         "category": "placement",

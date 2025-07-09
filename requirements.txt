@@ -1,5 +1,5 @@
-SpeechRecognition 
-pyttsx3 
-pyaudio
-gTTS 
-playsound
+speechrecognition
+pyttsx3
+pygame
+gtts
+spacy
